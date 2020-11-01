@@ -1,0 +1,30 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>CCGCG</title><style>
+    *,*:after,*:before{box-sizing:inherit}html,body{background:transparent;box-sizing:border-box;overflow:hidden}#debug-window{z-index:1000;position:absolute;left:10%;right:10%;bottom:10%;background-color:rgba(0,0,0,0.9)}#debug-window li{font-family:monospace;font-size:28px;color:#cccccc}
+
+    #container{position:absolute;top:0;left:0;right:0;bottom:0;padding:0;visibility:hidden}#lthird{position:absolute;left:5%;bottom:5%}.textline{font-family:Roboto;color:white;font-size:32px;text-transform:uppercase;padding:10px}#line1{color:white;background-color:rgba(16,16,16,0.8)}#line2{color:black;background-color:rgba(236,236,236,0.8)}
+
+    </style><script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.5.1/gsap.min.js"></script></head><body><ul id="debug-window"></ul><div id="container"><div id="lthird"><div class="textline" id="line1">HELLO WORLD</div><div class="textline" id="line2">HOW ARE YOU TODAY</div></div></div><script>
+    function log(s){console.log(s)
+const li=document.createElement('li');li.innerText=s;dbg=document.getElementById("debug-window");dbg.appendChild(li);}
+window.onerror=function(msg){log('error '+msg);}
+function parse_xml(xmlString){var parser=new DOMParser();var docError=parser.parseFromString('INVALID','text/xml');var parsererrorNS=docError.getElementsByTagName("parsererror")[0].namespaceURI;var doc=parser.parseFromString(xmlString,'text/xml');if(doc.getElementsByTagNameNS(parsererrorNS,'parsererror').length>0){throw new Error('Error parsing XML');}
+return doc;}
+function parse_params(str){try{return JSON.parse(str)}catch(err){try{doc=parse_xml(str);var result={};var root_element=doc.documentElement;var children=root_element.childNodes;for(var i=0;i<children.length;i++){var child=children[i];var key=child.getAttribute("id");var data=child.getElementsByTagName("data")[0];var value=data.getAttribute("value");result[key]=value;}
+return result}catch(xmlerr){return{}}}}
+function play(){log("Play is not implemented");}
+function stop(){log("Stop is not implemented");}
+function next(){log("Next is not implemented");}
+function update(data){log("Update is not implemented");}
+var ws_url="ws://localhost:9001";var amcp_queue=[];var ws=null;function amcp(msg){if(ws==null){log("Connecting to "+ws_url);ws=new WebSocket(ws_url)
+ws.onopen=function(){log("Websocket connection opened");while(amcp_queue.length>0){var m=amcp_queue.pop();log("Sending queued "+m);ws.send(m)}}
+ws.onerror=function(error){log("ws error");ws=null;}
+ws.onclose=function(){log("ws closed");ws=null;};}
+if(ws.readyState!==1){log("Queuing "+msg);amcp_queue.push(msg)}else{log("Sending "+msg);ws.send(msg)}}
+    var ws_url="ws://192.168.5.5:9001";var tween=null;play=function(){document.getElementById("container").style.visibility="visible";if(tween){tween.play()}else{tween=gsap.from(".textline",{duration:1,x:-100,opacity:0,stagger:.2});}}
+update=function(data){var params=parse_params(data)
+console.log(params);if("f0"in params)
+document.getElementById("line1").innerText=params["f0"];if("f1"in params)
+document.getElementById("line2").innerText=params["f1"];}
+stop=function(data){if(tween)
+tween.reverse();}
+    </script></body></html>

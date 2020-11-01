@@ -1,0 +1,6 @@
+nxtools
+htmlmin
+jsmin
+jinja2
+libsass
+pyinotify
