@@ -7,6 +7,7 @@
 #  - use manifest to define updatable fields
 #
 
+from logging import shutdown
 import os
 import time
 import copy
@@ -16,6 +17,8 @@ import sass
 import jsmin
 import htmlmin
 import jinja2
+
+import _thread
 
 import cherrypy
 import pyinotify
@@ -110,9 +113,10 @@ class TemplateBuilder():
         if os.path.exists(tpl_html_path):
             ctx["body"] = open(tpl_html_path).read()
 
+        manifest = {}
         if os.path.exists(manifest_path):
             manifest = json.load(open(manifest_path))
-            ctx.update(manifest)
+        ctx["manifest"] = manifest
 
         result = self.template.render(**ctx)
         result = htmlmin.minify(
@@ -173,10 +177,10 @@ class WebServer():
                 'tools.staticdir.dir': static_dir
                 },
 
-           #'/favicon.ico': {
-           #     'tools.staticfile.on': True,
-           #    'tools.staticfile.filename': os.path.join(static_root, static_dir, "img", "favicon.ico")
-           #    },
+            '/favicon.ico': {
+                'tools.staticfile.on': True,
+                'tools.staticfile.filename': os.path.join(static_root, static_dir, "img", "favicon.ico")
+                },
             }
 
         cherrypy.config.update({
@@ -186,16 +190,20 @@ class WebServer():
             "log.screen" : False
         })
 
-        cherrypy.tree.mount(self.handler, "/", self.config)
-        cherrypy.engine.subscribe('start', self.start)
-        cherrypy.engine.subscribe('stop', self.stop)
-        cherrypy.engine.start()
 
     def start(self): 
-        logging.goodnews("Web service started")
+        logging.info("Starting web server")
+        cherrypy.tree.mount(self.handler, "/", self.config)
+        cherrypy.engine.subscribe('start', self.on_start)
+        cherrypy.engine.subscribe('stop', self.on_stop)
+        cherrypy.engine.start()
+        cherrypy.engine.block()
+
+    def on_start(self):
+        logging.goodnews("Web server started")
         self.is_running = True
 
-    def stop(self):
+    def on_stop(self):
         logging.warning("Web service stopped")
         self.is_running = False
 
@@ -212,9 +220,6 @@ class SrcChangeHandler(pyinotify.ProcessEvent):
         self._msg = msg
 
     def process_default(self, event):
-        event_type = event.maskname.split("|")[0]
-        if event_type not in ["IN_CLOSE_WRITE", "IN_MOVED_TO", "IN_CREATED"]:
-            return
         pathname = event.pathname.replace(settings["src_dir"], "", 1)
         pathname = pathname.lstrip("/")
         template_name = pathname.split("/")[0]
@@ -222,22 +227,35 @@ class SrcChangeHandler(pyinotify.ProcessEvent):
             return
         builder.build(template_name)
 
-def watch_pyinotify():
+def watch():
     logging.info("Watching", settings["src_dir"])
     wm = pyinotify.WatchManager()
     handler = SrcChangeHandler(msg="changed")
     notifier = pyinotify.Notifier(wm, default_proc_fun=handler)
-    wm.add_watch(settings["src_dir"], pyinotify.ALL_EVENTS, rec=True, auto_add=True)
+    wm.add_watch(
+            settings["src_dir"], 
+            pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO | pyinotify.IN_CREATE, 
+            rec=True, 
+            auto_add=True
+        )
     notifier.loop()
 
 
 if __name__ == '__main__':
-    # Enable web server
-    server = WebServer()
-
     # Build all templates on start-up
     for template in builder.templates:
         builder.build(template)
 
+    # Enable web server
+    server = WebServer()
+    _thread.start_new_thread(server.start, ())
+    
+
     # Watch source directory for changes
-    watch_pyinotify()
+    try:
+        watch()
+    except KeyboardInterrupt:
+        print()
+        logging.info("Keyboard interrupt. Shutting down")
+        server.shutdown()
+        sys.exit(0)

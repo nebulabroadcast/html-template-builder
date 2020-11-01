@@ -7,11 +7,20 @@
     {{ core_css }}
     {{ tpl_css }}
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.5.1/gsap.min.js"></script>
+
+    {% for stylesheet in manifest.css %}
+        <link rel='stylesheet' href='{{ stylesheet }}' type='text/css'/>
+    {% endfor %}
+
+    {% for script in manifest.js %}
+        <script src="{{ script }}"></script>
+    {% endfor %}
 </head>
 <body>
     <ul id="debug-window"></ul>
+
     {{ body }}
+
     <script>
     {{ core_js }}
     {{ tpl_js }}
