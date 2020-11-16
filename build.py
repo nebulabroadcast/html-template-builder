@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 
-#
 # TODO:
-#  - Web server
 #  - landing page with template controls
 #  - use manifest to define updatable fields
+#  - fix favicon
+#  - fix keyboard interrupt warings (cherrypy)
 #
 
-from logging import shutdown
 import os
+import sys
 import time
 import copy
 import json
@@ -24,6 +24,8 @@ import cherrypy
 import pyinotify
 
 from nxtools import *
+
+logging.show_time = True
 
 #
 # Application settings
@@ -48,10 +50,10 @@ for key in settings:
 #
 
 def process_js(source_path: str) -> str:
-    """Opens an javascript file specified by path, 
+    """Opens a javascript file specified by path, 
     returns minified version of the script as a string.
 
-    Returns empty string if path does not exist.
+    Returns empty string if the path does not exist.
 
     Args:
         source_path (str): Path to the source js file
@@ -68,6 +70,17 @@ def process_js(source_path: str) -> str:
 
 
 def process_sass(source_path: str) -> str:
+    """Opens a SASS file specified by path, 
+    returns minified CSS as a string.
+
+    Returns empty string if the path does not exist.
+
+    Args:
+        source_path (str): Path to the source sass file
+    
+    Returns:
+        str: Resulting minified CSS
+    """
     with open(source_path) as sass_file:
         minified = sass.compile(
                 string=sass_file.read(),
@@ -228,6 +241,9 @@ class SrcChangeHandler(pyinotify.ProcessEvent):
         builder.build(template_name)
 
 def watch():
+    """Watch the source directory for changes.
+    This function is blocking, so it's called last.
+    """
     logging.info("Watching", settings["src_dir"])
     wm = pyinotify.WatchManager()
     handler = SrcChangeHandler(msg="changed")
@@ -246,12 +262,11 @@ if __name__ == '__main__':
     for template in builder.templates:
         builder.build(template)
 
-    # Enable web server
+    # Enable the web server
     server = WebServer()
     _thread.start_new_thread(server.start, ())
     
-
-    # Watch source directory for changes
+    # Watch the source directory for changes
     try:
         watch()
     except KeyboardInterrupt:

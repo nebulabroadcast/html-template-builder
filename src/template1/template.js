@@ -11,7 +11,7 @@ play = function(){
 }
 
 update = function(data){
-    var params = parse_params(data)
+    var params = parse_params(data);
     console.log(params);
     if ("f0" in params)
         document.getElementById("line1").innerText = params["f0"];
