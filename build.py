@@ -18,10 +18,11 @@ import jsmin
 import htmlmin
 import jinja2
 
-import _thread
-
-import cherrypy
-import pyinotify
+try:
+    import pyinotify
+    has_inotify = True
+except ImportError:
+    has_inotify = False
 
 from nxtools import *
 
@@ -34,15 +35,13 @@ logging.show_time = True
 settings = {
     "src_dir" : "src",
     "dist_dir" : "dist",
-    "web_host" : "0.0.0.0",
-    "web_port" : 8090
 }
 
 for key in settings:
     if key.endswith("_dir"):
         # All directories in settings ends with '_dir'
-        # We want to use absolute paths so we convert 
-        # all relative paths and expand ~ to the user's home directory 
+        # We want to use absolute paths so we convert
+        # all relative paths and expand ~ to the user's home directory
         settings[key] = os.path.abspath(os.path.expanduser(settings[key])).rstrip("/")
 
 #
@@ -50,19 +49,20 @@ for key in settings:
 #
 
 def process_js(source_path: str) -> str:
-    """Opens a javascript file specified by path, 
+    """Opens a javascript file specified by path,
     returns minified version of the script as a string.
 
     Returns empty string if the path does not exist.
 
     Args:
         source_path (str): Path to the source js file
-    
+
     Returns:
         str: Minified version of the script
     """
     try:
         with open(source_path) as js_file:
+           # return js_file.read()
             minified = jsmin.jsmin(js_file.read())
             return minified
     except:
@@ -70,14 +70,14 @@ def process_js(source_path: str) -> str:
 
 
 def process_sass(source_path: str) -> str:
-    """Opens a SASS file specified by path, 
+    """Opens a SASS file specified by path,
     returns minified CSS as a string.
 
     Returns empty string if the path does not exist.
 
     Args:
         source_path (str): Path to the source sass file
-    
+
     Returns:
         str: Resulting minified CSS
     """
@@ -138,10 +138,47 @@ class TemplateBuilder():
                 remove_empty_space=True,
                 remove_optional_attribute_quotes=False
             )
-        with open(os.path.join("dist", name + ".html"), "w") as f:
+
+
+        tplinfo = "<template"
+        tplinfo += " version=\"{}\"".format("2.0.0")
+        tplinfo += " authorName=\"{}\"".format("Nebula Broadcast")
+        tplinfo += " authorEmail=\"{}\"".format("info@nebulabroadcast.com")
+        tplinfo += " templateInfo=\"{}\"".format("")
+        tplinfo += " originalWidth=\"{}\"".format("1920")
+        tplinfo += " originalHeight=\"{}\"".format("1080")
+        tplinfo += " originalFrameRate=\"{}\">\n".format("50")
+
+        tplinfo += "  <components/>\n"
+        tplinfo += "  <keyframes/>\n"
+        tplinfo += "  <instances/>\n"
+
+        tplinfo += "  <parameters>\n"
+        for param in manifest.get("parameters", []):
+            tplinfo += "    <parameter id=\"{}\" type=\"{}\" info=\"{}\"/>\n".format(
+                        param["id"],
+                        param.get("type", "string"),
+                        param.get("info", "")
+
+                    )
+        tplinfo += "  </parameters>\n"
+        tplinfo += "</template>\n"
+
+
+
+        # Create destination directory "dist/template_name"
+        target_dir = os.path.join(settings["dist_dir"], name)
+        if not os.path.exists(target_dir):
+            os.makedirs(target_dir)
+
+        with open(os.path.join(target_dir, name + ".html"), "w") as f:
             f.write(result)
+
+        with open(os.path.join(target_dir, name + ".xml"), "w") as f:
+            f.write(tplinfo)
+
         return True
-    
+
     def build(self, name: str) -> bool:
         start_time = time.time()
         try:
@@ -150,111 +187,42 @@ class TemplateBuilder():
             log_traceback("Building of {} failed".format(name))
             return False
         logging.goodnews("Building of {} finished in {:.03f}s".format(name, time.time() - start_time))
+        return True
 
 builder = TemplateBuilder()
-
-
-#
-# Web server
-#
-
-class WebServerHander():
-    def __init__(self, server):
-        self.server = server
-
-    @cherrypy.expose
-    def index(self, *args, **kwargs):
-        return "index"
-
-    def cherrypy_error(self, *args, **kwargs):
-        return "Error {} {}".format(args, kwargs)
-
-
-class WebServer():
-    def __init__(self):
-        self.is_running = False
-        self.handler = WebServerHander(self)
-        static_root, static_dir = os.path.split(settings["dist_dir"]) 
-        self.config = {
-            '/': {
-                'tools.proxy.on': True,
-                'tools.proxy.local': 'X-Forwarded-Host',
-                'tools.proxy.local': 'Host',
-                'tools.staticdir.root': static_root,
-                'tools.trailing_slash.on' : False,
-                'error_page.default': self.handler.cherrypy_error,
-                },
-
-            '/template': {
-                'tools.staticdir.on': True,
-                'tools.staticdir.dir': static_dir
-                },
-
-            '/favicon.ico': {
-                'tools.staticfile.on': True,
-                'tools.staticfile.filename': os.path.join(static_root, static_dir, "img", "favicon.ico")
-                },
-            }
-
-        cherrypy.config.update({
-            "server.socket_host" : settings["web_host"],
-            "server.socket_port" : settings["web_port"],
-            'engine.autoreload.on' : False,
-            "log.screen" : False
-        })
-
-
-    def start(self): 
-        logging.info("Starting web server")
-        cherrypy.tree.mount(self.handler, "/", self.config)
-        cherrypy.engine.subscribe('start', self.on_start)
-        cherrypy.engine.subscribe('stop', self.on_stop)
-        cherrypy.engine.start()
-        cherrypy.engine.block()
-
-    def on_start(self):
-        logging.goodnews("Web server started")
-        self.is_running = True
-
-    def on_stop(self):
-        logging.warning("Web service stopped")
-        self.is_running = False
-
-    def shutdown(self):
-        cherrypy.engine.exit()
-
 
 #
 # Watch / autobuild
 #
 
-class SrcChangeHandler(pyinotify.ProcessEvent):
-    def my_init(self, msg):
-        self._msg = msg
+if has_inotify:
+    class SrcChangeHandler(pyinotify.ProcessEvent):
+        def my_init(self, msg):
+            self._msg = msg
 
-    def process_default(self, event):
-        pathname = event.pathname.replace(settings["src_dir"], "", 1)
-        pathname = pathname.lstrip("/")
-        template_name = pathname.split("/")[0]
-        if not template_name in builder.templates:
-            return
-        builder.build(template_name)
+        def process_default(self, event):
+            pathname = event.pathname.replace(settings["src_dir"], "", 1)
+            pathname = pathname.lstrip("/")
+            template_name = pathname.split("/")[0]
+            if not template_name in builder.templates:
+                return
+            builder.build(template_name)
 
-def watch():
-    """Watch the source directory for changes.
-    This function is blocking, so it's called last.
-    """
-    logging.info("Watching", settings["src_dir"])
-    wm = pyinotify.WatchManager()
-    handler = SrcChangeHandler(msg="changed")
-    notifier = pyinotify.Notifier(wm, default_proc_fun=handler)
-    wm.add_watch(
-            settings["src_dir"], 
-            pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO | pyinotify.IN_CREATE, 
-            rec=True, 
-            auto_add=True
-        )
-    notifier.loop()
+    def watch():
+        """Watch the source directory for changes.
+        This function is blocking, so it's called last.
+        """
+        logging.info("Watching", settings["src_dir"])
+        wm = pyinotify.WatchManager()
+        handler = SrcChangeHandler(msg="changed")
+        notifier = pyinotify.Notifier(wm, default_proc_fun=handler)
+        wm.add_watch(
+                settings["src_dir"],
+                pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO | pyinotify.IN_CREATE,
+                rec=True,
+                auto_add=True
+            )
+        notifier.loop()
 
 
 if __name__ == '__main__':
@@ -262,15 +230,11 @@ if __name__ == '__main__':
     for template in builder.templates:
         builder.build(template)
 
-    # Enable the web server
-    server = WebServer()
-    _thread.start_new_thread(server.start, ())
-    
-    # Watch the source directory for changes
-    try:
-        watch()
-    except KeyboardInterrupt:
-        print()
-        logging.info("Keyboard interrupt. Shutting down")
-        server.shutdown()
-        sys.exit(0)
+    if has_inotify:
+        # Watch the source directory for changes
+        try:
+            watch()
+        except KeyboardInterrupt:
+            print()
+            logging.info("Keyboard interrupt. Shutting down")
+            sys.exit(0)
