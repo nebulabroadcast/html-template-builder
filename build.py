@@ -131,13 +131,21 @@ class TemplateBuilder():
             manifest = json.load(open(manifest_path))
         ctx["manifest"] = manifest
 
+        param_map = "var param_map = {\n"
+        for i, param in enumerate(manifest.get("parameters", [])):
+            param_map += f"   'f{i}' : '{param['id']}',\n"
+        param_map+= "}"
+
+        ctx["param_map"] = param_map
+
         result = self.template.render(**ctx)
-        result = htmlmin.minify(
-                result,
-                remove_comments=True,
-                remove_empty_space=True,
-                remove_optional_attribute_quotes=False
-            )
+        if False:
+            result = htmlmin.minify(
+                    result,
+                    remove_comments=True,
+                    remove_empty_space=True,
+                    remove_optional_attribute_quotes=False
+                )
 
 
         tplinfo = "<template"

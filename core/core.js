@@ -22,8 +22,9 @@ function parse_xml(xmlString) {
 }
 
 function parse_params(str){
+    var data = {};
     try {
-        return JSON.parse(str)
+        data = JSON.parse(str)
     } catch (err) {
         try {
             doc = parse_xml(str);
@@ -37,11 +38,19 @@ function parse_params(str){
                 var value = data.getAttribute("value");
                 result[key] = value;
             }
-            return result
+            data = result
         } catch (xmlerr) {
-            return {}
+            data = {}
         }
     }
+    for (k in data){
+        if (k in param_map){
+            data[param_map[k]] = data[k]
+            delete data[k]
+        }
+    }
+    console.log(data)
+    return data
 }
 
 

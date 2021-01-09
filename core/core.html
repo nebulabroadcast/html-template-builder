@@ -12,6 +12,10 @@
         <link rel='stylesheet' href='{{ stylesheet }}' type='text/css'/>
     {% endfor %}
 
+    <script>
+        {{ param_map }}
+    </script>
+
     {% for script in manifest.js %}
         <script src="{{ script }}"></script>
     {% endfor %}
