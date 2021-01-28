@@ -12,6 +12,7 @@ import sys
 import time
 import copy
 import json
+import zipfile
 
 import sass
 import jsmin
@@ -34,6 +35,7 @@ logging.show_time = True
 
 settings = {
     "src_dir" : "src",
+    "build_dir" : "build",
     "dist_dir" : "dist",
 }
 
@@ -103,12 +105,14 @@ class TemplateBuilder():
             self.template = jinja2.Template(f.read())
 
     @property
-    def templates(self):
+    def templates(self) -> list:
+        """Returns a list of templates available in the source directory
+        """
         return [d for d in os.listdir(settings["src_dir"]) \
             if os.path.isdir(os.path.join(settings["src_dir"], d)) ]
 
     def _build(self, name: str) -> bool:
-        source_dir = os.path.join("src", name)
+        source_dir    = os.path.join("src", name)
         tpl_html_path = os.path.join(source_dir, "template.html")
         tpl_sass_path = os.path.join(source_dir, "template.sass")
         tpl_js_path   = os.path.join(source_dir, "template.js")
@@ -139,23 +143,33 @@ class TemplateBuilder():
         ctx["param_map"] = param_map
 
         result = self.template.render(**ctx)
-        if False:
-            result = htmlmin.minify(
-                    result,
-                    remove_comments=True,
-                    remove_empty_space=True,
-                    remove_optional_attribute_quotes=False
-                )
+        result = htmlmin.minify(
+                result,
+                remove_comments=True,
+                remove_empty_space=True,
+                remove_optional_attribute_quotes=False
+            )
 
+        tpl_header_data = {
+            "version" : "2.0.0",
+            "author_name" : manifest.get("author_name", "Nebula Broadcast"),
+            "author_email" : manifest.get("author_email", "info@nebulabroadcast.com"),
+            "template_info" : "",
+            "width" : manifest.get("width", 1920),
+            "height" : manifest.get("height", 1080),
+            "frame_rate" : manifest.get("frame_rate", 50),
+        }
 
         tplinfo = "<template"
-        tplinfo += " version=\"{}\"".format("2.0.0")
-        tplinfo += " authorName=\"{}\"".format("Nebula Broadcast")
-        tplinfo += " authorEmail=\"{}\"".format("info@nebulabroadcast.com")
-        tplinfo += " templateInfo=\"{}\"".format("")
-        tplinfo += " originalWidth=\"{}\"".format("1920")
-        tplinfo += " originalHeight=\"{}\"".format("1080")
-        tplinfo += " originalFrameRate=\"{}\">\n".format("50")
+        tplinfo += " version=\"{version}\""
+        tplinfo += " authorName=\"{author_name}\""
+        tplinfo += " authorEmail=\"{author_email}\""
+        tplinfo += " templateInfo=\"{template_info}\""
+        tplinfo += " originalWidth=\"{width}\""
+        tplinfo += " originalHeight=\"{height}\""
+        tplinfo += " originalFrameRate=\"{frame_rate}\">\n"
+
+        tplinfo = tplinfo.format(**tpl_header_data)
 
         tplinfo += "  <components/>\n"
         tplinfo += "  <keyframes/>\n"
@@ -173,9 +187,8 @@ class TemplateBuilder():
         tplinfo += "</template>\n"
 
 
-
-        # Create destination directory "dist/template_name"
-        target_dir = os.path.join(settings["dist_dir"], name)
+        # Create destination directory "build/template_name"
+        target_dir = os.path.join(settings["build_dir"], name)
         if not os.path.exists(target_dir):
             os.makedirs(target_dir)
 
@@ -192,9 +205,9 @@ class TemplateBuilder():
         try:
             self._build(name)
         except Exception:
-            log_traceback("Building of {} failed".format(name))
+            log_traceback(f"Building of {name} failed".format(name))
             return False
-        logging.goodnews("Building of {} finished in {:.03f}s".format(name, time.time() - start_time))
+        logging.goodnews(f"Building of {name} finished in {time.time() - start_time:.03f}s")
         return True
 
 builder = TemplateBuilder()
@@ -231,6 +244,8 @@ if has_inotify:
                 auto_add=True
             )
         notifier.loop()
+else:
+    watch = None
 
 
 if __name__ == '__main__':
@@ -238,7 +253,22 @@ if __name__ == '__main__':
     for template in builder.templates:
         builder.build(template)
 
-    if has_inotify:
+    if "--dist" in sys.argv:
+        if not os.path.exists(settings["dist_dir"]):
+            os.makedirs(settings["dist_dir"])
+        for template in builder.templates:
+            tdir = os.path.join(settings["build_dir"], template)
+            zipname = os.path.join(settings["dist_dir"], template + ".zip")
+            with zipfile.ZipFile(zipname, "w") as z:
+                for folderName, subfolders, filenames in os.walk(tdir):
+                    for filename in filenames:
+                        filePath = os.path.join(folderName, filename)
+                        z.write(filePath, os.path.basename(filePath))
+
+
+        sys.exit(0)
+
+    if watch and "--watch" in sys.argv:
         # Watch the source directory for changes
         try:
             watch()

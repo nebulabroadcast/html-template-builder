@@ -31,7 +31,7 @@ function parse_params(str){
             var result = {};
             var root_element = doc.documentElement;
             var children = root_element.childNodes;
-            for(var i =0; i< children.length; i++) {
+            for(var i =0 ; i < children.length; i++) {
                 var child = children[i];
                 var key = child.getAttribute("id");
                 var data = child.getElementsByTagName("data")[0];
