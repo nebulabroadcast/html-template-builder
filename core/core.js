@@ -57,56 +57,26 @@ function parse_params(str){
     return data
 }
 
-
-function play() {
-    log("Play is not implemented");
-}
-
-function stop() {
-    log("Stop is not implemented");
-}
-
-function next() {
-    log("Next is not implemented");
-}
-
-function update(data) {
-    log("Update is not implemented");
-}
+function play() {}
+function stop() {}
+function next() {}
+function update(data) {}
 
 
+var amcp_bridge_url = "http://127.0.0.1:9731";
 
-var ws_url = "ws://localhost:9001";
-var amcp_queue = [];
-var ws = null;
+function amcp(command){
+    log("SENDING " + command)
+    var xhr = new XMLHttpRequest()
+    xhr.open('POST', amcp_url)
+    xhr.responseType = "text"
+    xhr.send(command)
 
-function amcp (msg) {
-    if (ws == null){
-        log("Connecting to " + ws_url);
-        ws = new WebSocket(ws_url)
-        ws.onopen = function () {
-            log("Websocket connection opened");
-            while (amcp_queue.length > 0) {
-                var m = amcp_queue.pop();
-                log("Sending queued " + m );
-                ws.send(m)
-            }
-        }
-        ws.onerror = function(error) {
-            log("ws error");
-            ws = null;
-        }
-        ws.onclose = function () {
-            log("ws closed");
-            ws = null;
-        };
-    }
+    xhr.onload = function() {
+    };
 
-    if (ws.readyState !== 1) {
-        log("Queuing " + msg);
-        amcp_queue.push(msg)
-    } else {
-        log("Sending " + msg);
-        ws.send(msg)
+    xhr.onerror = function() {
+        log("Status:" +  xhr.status + " : " + xhr.statusText)
+        log(xhr.responseText)
     }
 }
