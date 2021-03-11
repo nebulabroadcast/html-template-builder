@@ -63,12 +63,12 @@ function next() {}
 function update(data) {}
 
 
-var amcp_bridge_url = "http://127.0.0.1:9731";
+var amcp_bridge_url = "http://127.0.0.1:9731/amcp";
 
 function amcp(command){
     log("SENDING " + command)
     var xhr = new XMLHttpRequest()
-    xhr.open('POST', amcp_url)
+    xhr.open('POST', amcp_bridge_url)
     xhr.responseType = "text"
     xhr.send(command)
 
