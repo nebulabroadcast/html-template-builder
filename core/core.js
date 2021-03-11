@@ -1,9 +1,13 @@
+var debug = false;
+
 function log(s) {
     console.log(s)
-    const li = document.createElement('li');
-    li.innerText = s;
-    dbg = document.getElementById("debug-window");
-    dbg.appendChild(li);
+    if (debug) {
+        const li = document.createElement('li');
+        li.innerText = s;
+        dbg = document.getElementById("debug-window");
+        dbg.appendChild(li);
+    }
 }
 
 window.onerror = function(msg) {
