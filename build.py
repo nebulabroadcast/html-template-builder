@@ -13,6 +13,7 @@ import time
 import copy
 import json
 import zipfile
+import shutil
 
 import sass
 import jsmin
@@ -197,6 +198,14 @@ class TemplateBuilder():
 
         with open(os.path.join(target_dir, name + ".xml"), "w") as f:
             f.write(tplinfo)
+
+        for depname in os.listdir(source_dir):
+            if depname in ["template.html", "template.sass", "template.scss", "template.js", "manifest.json"]:
+                continue
+            dep_src = os.path.join(source_dir, depname)
+            dep_tgt = os.path.join(target_dir, depname)
+            shutil.copy(dep_src, dep_tgt)
+
 
         return True
 
